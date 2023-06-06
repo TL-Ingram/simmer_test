@@ -2,11 +2,14 @@
 
 install.packages("simmer")
 library(simmer)
+library(simmer.plot)
+library(readr)
+library(tidyverse)
+library(here)
 
-set.seed(1)
+#####
 
-env <- simmer("Inpatient")
-env
+# install.packages("simmer.plot")
 
 # resource = server + queue
 # server
@@ -23,45 +26,67 @@ env
 # activity
 # demand = number added to the list
 # capacity = number removed from list by completed elective cycle
-# rott = number removed from list (reneged?
+# rott = number removed from list (reneged?)
 
-# example: lets assume initial queue size = 100; demand = 20; capacity = 15; rott = 2
-# DEMAND = 20
-# CAPACITY = 15
-# ROTT = 2
-# set.seed(10)
-# CHECKED = function() rexp(1,1)
-# NEW_TASK<-function() rpois(20,1)
-# ?rpois
-# rpois(1,2)
-# test <- rexp(100, 1)
-rexp(100,20)
-h <- plot(test, x = x)
-lambda = 20
+#####
+parameters <- read_rds(here("all_spec.rds"))
+# list <- parameters %>%
+#   distinct(list) %>%
+#   pull(list)
+# spec <- parameters %>%
+#   distinct(speciality) %>%
+#   pull(speciality)
+
+# Do it for T&O first
+    # for(i in wl_type) {
+    #   wl_prepared <- wl_comp %>%
+    #     filter(., wl == i,
+    #            date < train_halt)
+    #   # Filter to speciality
+    #   for (j in speciality) {
+    #     wl_prep <- wl_prepared %>%
+    #       mutate(date = ymd(date)) %>%
+    #       filter(., speciality == j)
+trauma <- parameters %>%
+  filter(., speciality == "Trauma & Orthopaedics") %>%
+  filter(., list == "Active list") %>%
+  pivot_wider(id_cols = -c(speciality, time_period, list), 
+              names_from = "metric", values_from = "month_mean")
+set.seed(10)
+lambda = trauma$demand / 30
 patient <- trajectory() %>%
   log_("start") %>%
+  leave(function() runif(1) < ((trauma$rott /30) / ((trauma$capacity / 30) + (trauma$rott / 30))), keep_seized = F) %>%
   seize("nurse") %>%
   timeout(1) %>%
   release("nurse") %>%
   log_("complete")
 env <- simmer() %>%
-  add_resource("nurse", capacity = 20) %>%
+  add_resource("nurse", capacity = (trauma$capacity/30)) %>%
+  # add_generator("starter", patient, function() c(rep(0, sample((x_test - 1):x_test, 1)), -1)) %>%
   add_generator("patient", patient, function() rexp(1,lambda)) %>%
-  run(until = 100)
+  run(until = 365)
 resources <- get_mon_resources(env)
+plot(resources, metric = "usage", "nurse", items = "queue")
+
+trauma$rott / (trauma$capacity + trauma$rott)
+
+#####
+
+# rott = 0.005
+# resources <- get_mon_resources(env)
 # get_n_generated(env, "patient")
 # arrivals <- get_mon_arrivals(env)
 # ?get_n_generated
 # ?rexp
-rexp(10,20)
-# install.packages("simmer.plot")
-# library(simmer.plot)
+x_test = 100
 plot(resources, metric = "usage", "nurse", items = "queue")
 # ?plot.mon
-     
-
+?add_dataframe
+?sample
 # Next I want to loop it through multiple times and then plot that to see all the simulations
 # Also how do I start the queue at a certain size?
+rep(sample(98:100, 1),4)
 
 
 # Arrival rate
